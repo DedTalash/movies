@@ -1,4 +1,7 @@
 package telran.movies.entities;
+
+import java.util.List;
+
 import javax.persistence.*;
 @Entity
 @Table(name="cinemas")
@@ -7,6 +10,12 @@ public class Cinema {
 String name;
 String city;
 int places;
+public void setPlaces(int places) {
+	this.places = places;
+}
+@OneToMany(mappedBy = "cinema", cascade = CascadeType.REMOVE)
+List<Watch> watches;
+
 public Cinema() {
 	
 }

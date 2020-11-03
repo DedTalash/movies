@@ -15,6 +15,9 @@ int tickets;
 Cinema cinema;
 @ManyToOne
 Movie movie;
+public void setMovie(Movie movie) {
+	this.movie = movie;
+}
 public Watch() {
 }
 public Watch(LocalDateTime dateTime, int ticketCost, int tickets, Cinema cinema, Movie movie) {

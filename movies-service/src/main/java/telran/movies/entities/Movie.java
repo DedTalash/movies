@@ -6,6 +6,9 @@ public class Movie {
 @Id
 	String name;
 String producer;
+public void setProducer(String producer) {
+	this.producer = producer;
+}
 int year;
 public Movie() {
 	

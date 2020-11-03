@@ -6,12 +6,15 @@ import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import telran.movies.repo.*;
 import telran.movies.dto.*;
 
 import telran.movies.entities.*;
 import telran.movies.service.api.MoviesService;
 @Service
+@Transactional (readOnly = true)
 public class MoviesServiceJpaImpl implements MoviesService {
 @Autowired 
 CinemaRepository cinemaRepo;
@@ -20,6 +23,7 @@ MovieRepository movieRepo;
 @Autowired 
 WatchRepository watchRepo;
 	@Override
+	@Transactional
 	public void addMovie(MovieDto movieDto) {
 	
 		if (movieRepo.existsById(movieDto.name)) {
@@ -37,7 +41,8 @@ WatchRepository watchRepo;
 
 	@Override
 	public MovieDto getMovie(String name) {
-		return toMovieDto(movieRepo.findByName(name));
+		Movie movie = movieRepo.findById(name).orElse(null);
+		return movie == null ? null : toMovieDto(movie);
 	}
 
 	@Override
@@ -60,21 +65,33 @@ WatchRepository watchRepo;
 
 	@Override
 	public List<MovieDto> getMoviesYears(int yearFrom, int yearTo) {
-		return toListMovieDto(movieRepo.findByYearsFromTo(yearFrom, yearTo));
+		
+		return toListMovieDto(movieRepo.findByYearBetween(yearFrom, yearTo));
 	}
 
 	@Override
-	public void deleteMovie(String name) {
-		// TODO Auto-generated method stub
+	@Transactional
+	public MovieDto deleteMovie(String name) {
+		Movie movie = movieRepo.findById(name).orElse(null);
+		if (movie==null) {
+			throw new RuntimeException(String.format("Movie %s doesn't exist", name));
+		}
+		List<Watch> watches = watchRepo.findByMovieName(name);
+		watches.forEach(w->w.setMovie(null));
+		movieRepo.delete(movie);
+		return toMovieDto(movie);
+		
 
 	}
 
 	@Override
 	public List<MovieDto> getMovies() {
-		return toListMovieDto(movieRepo.findAllMovies());
+		
+		return toListMovieDto(movieRepo.findAll());
 	}
 
 	@Override
+	@Transactional
 	public void addCinema(CinemaDto cinemaDto) {
 		if(cinemaRepo.existsById(cinemaDto.name)) {
 			throw new RuntimeException("Cinema already exists " + cinemaDto.name);
@@ -90,6 +107,7 @@ WatchRepository watchRepo;
 	}
 
 	@Override
+	@Transactional
 	public void addWatch(WatchDto watchDto) {
 	Cinema cinema = cinemaRepo.findById(watchDto.cinemaName).orElse(null);
 	if (cinema == null) {
@@ -108,18 +126,19 @@ WatchRepository watchRepo;
 
 	@Override
 	public List<MovieDto> moviesWatchesGreaterThan(int nWatches) {
-		return null;
+		
+		return toListMovieDto(movieRepo.findWatchesGreaterThan(nWatches));
 	}
 
 	@Override
 	public List<MovieDto> mostPopularMovies(int amount) {
-		// TODO get <amount> movies with biggest number of the tickets in watches
-		return null;
+		
+		return toListMovieDto(movieRepo.findMostPopularMovies(amount));
 	}
 
 	@Override
 	public List<CinemaDto> profitableCinemas() {
-		
+		//get cinemas with profit for first third of all cinemas
 		return toListCinemaDto(cinemaRepo.findProfitableCinemas());
 	}
 
@@ -136,19 +155,26 @@ private CinemaDto toCinemaDto(Cinema cinema) {
 }
 	@Override
 	public List<MovieDto> profitableMoviesCity(String city) {
-		// TODO get all movies with profit greater than average profit for all movies in the given city
-		return null;
+		//  get all movies with  profit greater than average profit for all movies in the given city
+		
+		return toListMovieDto(movieRepo.findByCityProfitable(city));
 	}
 
 	@Override
 	public List<CinemaDto> cinemasLeastMovieWatchesProducer(int nCinemas, String producer) {
-		// TODO get the given number of cinemas of the given producer with least number of watches
-		return null;
+		// get the given number of cinemas of the given producer with least number of watches
+		return toListCinemaDto(cinemaRepo.findByProducerLeastMovieWatches(nCinemas, producer));
 	}
 
 	@Override
-	public void updateProducer(String movieName, String producer) {
-		// TODO Auto-generated method stub
+	@Transactional
+	public MovieDto updateProducer(String movieName, String producer) {
+		Movie movie = movieRepo.findById(movieName).orElse(null);
+		if (movie == null) {
+			throw new RuntimeException(String.format("Movie %s doesn't exist", movieName));
+		}
+		movie.setProducer(producer);
+		return toMovieDto(movie);
 
 	}
 
@@ -160,32 +186,43 @@ private CinemaDto toCinemaDto(Cinema cinema) {
 
 	@Override
 	public List<CinemaProfit> getCinemasProfits() {
-		// TODO Auto-generated method stub
-		return null;
+		
+		return watchRepo.findCinemasProfits();
 	}
 
 	@Override
-	public void deleteCinemasLessProfit(long profit) {
-		// TODO Auto-generated method stub
+	@Transactional
+	public List<CinemaDto> deleteCinemasLessProfit(long profit) {
+		List<Cinema> cinemas = cinemaRepo.findByProfitLess(profit) ;
+		
+		cinemas.forEach(cinemaRepo::delete);
+		return toListCinemaDto(cinemas);
 
 	}
 
 	@Override
-	public void updatePlaces(String cinemaName, int places) {
-		// TODO Auto-generated method stub
+	@Transactional
+	public CinemaDto updatePlaces(String cinemaName, int places) {
+		Cinema cinema = cinemaRepo.findById(cinemaName).orElse(null);
+		if (cinema == null) {
+			throw new RuntimeException(String.format("Cinema %s doesn't exist",cinemaName));
+			
+		}
+		cinema.setPlaces(places);
+		return toCinemaDto(cinema);
 
 	}
 
 	@Override
 	public CinemaDto getCinema(String cinemaName) {
-		// TODO get info about cinema with the given name
-		return null;
+		Cinema cinema = cinemaRepo.findById(cinemaName).orElse(null);
+		return cinema != null ?toCinemaDto(cinema) : null;
 	}
 
 	@Override
 	public List<CinemaDto> getCinemas() {
-		// TODO get data about all cinemas
-		return null;
+		
+		return toListCinemaDto(cinemaRepo.findAll());
 	}
 
 }
